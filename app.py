@@ -11,7 +11,6 @@ NOMBRE_HOJA_GOOGLE = "Base de Datos CIS"
 
 # --- CONEXIÓN A GOOGLE SHEETS ---
 def conectar_sheets():
-    """Conecta con Google Sheets usando los Secretos de Streamlit"""
     try:
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
         creds_dict = dict(st.secrets["connections"]["gsheets"])
@@ -50,7 +49,8 @@ col1, col2, col3 = st.columns(3)
 
 with col1:
     area = st.selectbox("ÁREA *", ["RED DE ATENCIÓN", "DIPA 15", "DIPA COMBATE", "SUBTE", "Otro"])
-    # Lógica condicional DIPA COMBATE
+    
+    # Lógica condicional DIPA COMBATE (Variable para el FINAL de la hoja)
     gorcis = "NO APLICA"
     if area == "DIPA COMBATE":
         st.info("🔹 Pregunta DIPA COMBATE")
@@ -82,8 +82,9 @@ with c_p1:
     nacionalidad = st.text_input("NACIONALIDAD")
 
 with c_p2:
-    tipo_doc = st.selectbox("TIPO DE DOCUMENTO *", ["DNI", "PASAPORTE", "PRECARIA", "OTRO"])
+    # Nota: El orden visual aquí es para comodidad, el orden de envío se arregla al final
     dni = st.text_input("NÚMERO DE IDENTIDAD *", placeholder="Ej: 30451327 (Sin puntos)")
+    tipo_doc = st.selectbox("TIPO DE DOCUMENTO *", ["DNI", "PASAPORTE", "PRECARIA", "OTRO"])
 
 with c_p3:
     fecha_nac = st.date_input("FECHA NACIMIENTO", min_value=date(1920, 1, 1))
@@ -99,7 +100,7 @@ with c_d2:
 st.divider()
 
 # === SECCIÓN 3: SALUD Y MEDICACIÓN ===
-st.subheader("cS 3. Salud y Medicación")
+st.subheader("🏥 3. Salud y Medicación")
 c_s1, c_s2, c_s3 = st.columns(3)
 
 with c_s1:
@@ -186,60 +187,60 @@ st.markdown("---")
 resumen = st.text_area("📝 DIAGNÓSTICO DEL OPERADOR Y RESUMEN DEL CASO *", height=100)
 
 # === BOTÓN DE GUARDADO ===
-# Nota: Al estar fuera de un st.form, este botón envía los datos recolectados arriba
 if st.button("🚀 REGISTRAR FICHA EN LA NUBE", type="primary", use_container_width=True):
     
     # Validaciones
     if not nombre or not apellido or not dni:
         st.error("⚠️ Faltan datos obligatorios: Nombre, Apellido o DNI.")
     elif area == "DIPA COMBATE" and gorcis == "NO APLICA": 
-         # Pequeña validación extra para DIPA
          st.warning("⚠️ Seleccionó DIPA COMBATE pero no indicó evaluación GORCIS.")
     else:
         with st.spinner("Guardando en Google Drive..."):
             ahora = datetime.now()
             
-            # --- LISTA ORDENADA PARA GOOGLE SHEETS ---
-            # Este orden debe coincidir EXACTO con las columnas de tu Excel
+            # --- LISTA MAESTRA (ORDEN EXACTO SOLICITADO) ---
+            # Aquí es donde ocurre la magia para que coincida con tus columnas
             fila_datos = [
-                ahora.strftime("%d/%m/%Y"), # FECHA REGISTRO
-                ahora.strftime("%H:%M"),    # HORA
-                area,
-                prioridad,
-                gorcis,       # Nuevo campo DIPA
-                supervisor,
-                carta,
-                apellido,
-                nombre,
-                tipo_doc,
-                dni,
-                fecha_nac.strftime("%d/%m/%Y"),
-                edad,
-                nacionalidad,
-                doc_ingreso,
-                foto_dni,
-                prob_salud,
-                autovalidez,
-                cud,
-                cama_baja,
-                escaleras,
-                diag_medico,
-                toma_med,
-                cual_med,
-                esquema,
-                posee_med,
-                foto_esquema,
-                usa_panales,
-                higieniza_solo,
-                inst_movilidad,
-                cual_inst,
-                yeso,
-                tiempo_calle,
-                motivo_calle,
-                primera_vez,
-                sit_laboral,
-                desc_trabajo,
-                resumen
+                ahora.strftime("%d/%m/%Y %H:%M:%S"), # Marca temporal
+                area,                                # ÁREA
+                prioridad,                           # Prioridad
+                supervisor,                          # SUPERVISOR/A
+                carta,                               # NÚMERO DE CARTA
+                apellido,                            # APELLIDO
+                nombre,                              # NOMBRE
+                dni,                                 # NÚMERO DE IDENTIDAD
+                "",                                  # Columna 8 (Espacio vacío por si acaso)
+                tipo_doc,                            # TIPO DE DOCUMENTO
+                fecha_nac.strftime("%d/%m/%Y"),      # FECHA NACIMIENTO
+                edad,                                # EDAD
+                nacionalidad,                        # NACIONALIDAD
+                foto_dni,                            # FOTO DNI...
+                prob_salud,                          # PROBLEMÁTICA DE SALUD
+                autovalidez,                         # AUTOVALIDEZ
+                cud,                                 # CUD
+                cama_baja,                           # SOLICITUD DE CAMA BAJA
+                escaleras,                           # APTO PARA SUBIR ESCALERAS
+                diag_medico,                         # DIAGNÓSTICO MÉDICO/PSIQUIÁTRICO
+                toma_med,                            # TOMA MEDICACIÓN
+                cual_med,                            # SI TOMA MEDICACIÓN, ¿CUÁL?
+                esquema,                             # CUENTA CON ESQUEMA
+                foto_esquema,                        # FOTO DEL ESQUEMA
+                posee_med,                           # ¿POSEE LA MEDICACIÓN PARA 2 DÍAS?
+                tiempo_calle,                        # TIEMPO EN CALLE
+                motivo_calle,                        # MOTIVO DE SIT. EN CALLE
+                primera_vez,                         # PRIMERA VEZ EN CIS
+                sit_laboral,                         # SITUACIÓN LABORAL
+                "",                                  # DESCRIPCIÓN EMPLEO (Dejamos vacío o duplicamos desc_trabajo si quieres)
+                desc_trabajo,                        # DE QUÉ TRABAJA
+                resumen,                             # DIAGNÓSTICO DEL OPERADOR
+                doc_ingreso,                         # ¿TIENE DOC NECESARIA...? (Mapeado aquí según tu lista final)
+                usa_panales,                         # ¿USA PAÑALES?
+                higieniza_solo,                      # ¿PUEDE HIGIENIZARSE SOLO?
+                inst_movilidad,                      # ¿TIENE INSTRUMENTO MOVILIDAD?
+                cual_inst,                           # ¿CUÁL UTILIZA?
+                yeso,                                # ¿TIENE YESO...?
+                "",                                  # Puntuación (Campo vacío por ahora)
+                gorcis                               # SOLO PARA DIPA COMBATE: GORCIS
             ]
             
             exito = guardar_en_nube(fila_datos)
@@ -249,6 +250,6 @@ if st.button("🚀 REGISTRAR FICHA EN LA NUBE", type="primary", use_container_wi
                 st.balloons()
             else:
                 st.error("Hubo un error al conectar con Google Sheets.")
-            st.balloons()
+
 
 
