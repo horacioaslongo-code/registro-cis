@@ -12,15 +12,21 @@ NOMBRE_HOJA_GOOGLE = "Base de Datos CIS"
 # --- CONEXIÓN A GOOGLE SHEETS ---
 def conectar_sheets():
     try:
-        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        scope = ["https://www.googleapis.com/auth/spreadsheets", 
+                 "https://www.googleapis.com/auth/drive"]
+        
         creds_dict = dict(st.secrets["connections"]["gsheets"])
-        creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+        
+        if "private_key" in creds_dict:
+            creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+        
         creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
         client = gspread.authorize(creds)
+        
         sheet = client.open(NOMBRE_HOJA_GOOGLE).sheet1
         return sheet
     except Exception as e:
-        st.error(f"❌ Error de conexión: {e}")
+        st.error(f"❌ Error detallado: {str(e)}")
         return None
 
 def guardar_en_nube(datos_lista):
@@ -250,6 +256,7 @@ if st.button("🚀 REGISTRAR FICHA EN LA NUBE", type="primary", use_container_wi
                 st.balloons()
             else:
                 st.error("Hubo un error al conectar con Google Sheets.")
+
 
 
 
