@@ -1,147 +1,126 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime, date
-import os
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 
-# --- Configuración de la Página ---
-st.set_page_config(page_title="CIS - Gestión de Ingresos", page_icon="🏢", layout="wide")
+# --- CONFIGURACIÓN ---
+st.set_page_config(page_title="CIS - Sistema Cloud", page_icon="☁️", layout="wide")
 
-# Clave de acceso (Cámbiala por la que quieras)
-CLAVE_ACCESO = "CIS2025"
+# Nombre de tu hoja en Google Drive (Debe coincidir EXACTO)
+NOMBRE_HOJA_GOOGLE = "Base de Datos CIS"
 
-# Nombre del archivo local
-ARCHIVO_CSV = 'ingresos_detallados.csv'
+# --- CONEXIÓN A GOOGLE SHEETS ---
+def conectar_sheets():
+    """Conecta con Google Sheets usando los Secretos de Streamlit"""
+    try:
+        # Recuperamos la configuración de los Secrets
+        # Streamlit guarda los secretos en st.secrets
+        # Necesitamos convertir el objeto de secretos en un diccionario simple para oauth
+        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        
+        # Creamos las credenciales desde la información en st.secrets
+        # Asumiendo que pegaste el contenido del JSON bajo [connections.gsheets]
+        creds_dict = dict(st.secrets["connections"]["gsheets"])
+        
+        # Limpieza: gspread necesita que 'private_key' tenga los saltos de línea reales (\n)
+        creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
 
-# --- ENCABEZADOS ---
-HEADERS = [
-    "ÁREA", "Prioridad", "SUPERVISOR/A", "NÚMERO DE CARTA", "NOMBRE", "APELLIDO",
-    "NÚMERO DE IDENTIDAD", "TIPO DE DOCUMENTO", "FECHA NACIMIENTO", "EDAD", "NACIONALIDAD",
-    "FOTO DNI/EXTRAVÍO/TRÁMITE", "PROBLEMÁTICA DE SALUD", "AUTOVALIDEZ", "CUD", 
-    "SOLICITUD DE CAMA BAJA", "APTO PARA SUBIR ESCALERAS",
-    "DIAGNÓSTICO MÉDICO/PSIQUIÁTRICO", "TOMA MEDICACIÓN", "SI TOMA MEDICACIÓN, ¿CUÁL?", 
-    "CUENTA CON ESQUEMA", "FOTO DEL ESQUEMA", "¿POSEE LA MEDICACIÓN PARA AL MENOS 2 DÍAS?",
-    "TIEMPO EN CALLE", "MOTIVO DE SIT. EN CALLE", "PRIMERA VEZ EN CIS",
-    "SITUACIÓN LABORAL", "DESCRIPCIÓN EMPLEO", "DIAGNÓSTICO DEL OPERADOR"
-]
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+        client = gspread.authorize(creds)
+        
+        # Abrir la hoja
+        sheet = client.open(NOMBRE_HOJA_GOOGLE).sheet1
+        return sheet
+    except Exception as e:
+        st.error(f"❌ Error al conectar con Google Sheets: {e}")
+        return None
 
-# --- Funciones ---
+# --- FUNCIONES ---
+def guardar_en_nube(datos_lista):
+    """Recibe una lista de datos y la agrega como fila en Sheets"""
+    hoja = conectar_sheets()
+    if hoja:
+        try:
+            hoja.append_row(datos_lista)
+            return True
+        except Exception as e:
+            st.error(f"Error escribiendo datos: {e}")
+            return False
+    return False
+
 def calcular_edad(fecha_nac):
     if not fecha_nac: return 0
     today = date.today()
     return today.year - fecha_nac.year - ((today.month, today.day) < (fecha_nac.month, fecha_nac.day))
 
-def guardar_local(datos_dict):
-    df_nuevo = pd.DataFrame([datos_dict])
-    if not os.path.exists(ARCHIVO_CSV):
-        df_nuevo.to_csv(ARCHIVO_CSV, index=False, columns=HEADERS)
-    else:
-        df_nuevo.to_csv(ARCHIVO_CSV, mode='a', header=False, index=False, columns=HEADERS)
+# --- INTERFAZ ---
+st.title("☁️ Registro CIS - Conectado a Drive")
+st.info("🟢 Estado: Sistema Online guardando en Google Sheets")
 
-def verificar_login():
-    """Crea una barra lateral de login simple"""
-    if 'logueado' not in st.session_state:
-        st.session_state['logueado'] = False
-
-    if not st.session_state['logueado']:
-        st.markdown("## 🔒 Acceso Restringido CIS")
-        col1, col2 = st.columns([1,2])
-        with col1:
-            password = st.text_input("Ingrese Contraseña de Equipo", type="password")
-            if st.button("Ingresar"):
-                if password == CLAVE_ACCESO:
-                    st.session_state['logueado'] = True
-                    st.rerun()
-                else:
-                    st.error("Contraseña incorrecta")
-        st.stop() # Detiene la app aquí si no está logueado
-
-# --- EJECUCIÓN PRINCIPAL ---
-
-# 1. Verificar Seguridad
-verificar_login()
-
-# 2. Barra Lateral (Menú Administrativo)
-with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/921/921347.png", width=100) # Icono genérico
-    st.title("Panel de Control")
-    st.markdown("---")
+with st.form("entry_form", clear_on_submit=True):
     
-    # Descarga de Datos
-    if os.path.exists(ARCHIVO_CSV):
-        df = pd.read_csv(ARCHIVO_CSV)
-        st.metric("Registros Totales", len(df))
+    st.markdown("### Datos de Ingreso")
+    col1, col2 = st.columns(2)
+    with col1:
+        area = st.selectbox("Área", ["RED DE ATENCIÓN", "DIPA 15", "DIPA COMBATE", "SUBTE"])
+        prioridad = st.selectbox("Prioridad", ["1. COMUNA 2", "2. COMUNA 14", "3. SIN TECHO", "OTRAS"])
+        supervisor = st.text_input("Supervisor")
+        carta = st.text_input("N° Carta")
+    
+    with col2:
+        nombre = st.text_input("Nombre *")
+        apellido = st.text_input("Apellido *")
+        dni = st.text_input("DNI (Sin puntos) *")
+        fecha_nac = st.date_input("Fecha Nacimiento", min_value=date(1950,1,1))
+    
+    col3, col4 = st.columns(2)
+    with col3:
+        nacionalidad = st.text_input("Nacionalidad")
+        genero = st.selectbox("Género", ["Masc", "Fem", "Otro"])
+    with col4:
+        tipo_doc = st.selectbox("Tipo Doc", ["DNI", "Pasaporte", "Indoc"])
         
-        csv = df.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            "📥 Descargar Base de Datos (CSV)",
-            csv,
-            f"registros_cis_{datetime.now().strftime('%Y%m%d')}.csv",
-            "text/csv",
-        )
-    else:
-        st.info("Aún no hay registros.")
+    obs = st.text_area("Observaciones Sociales / Diagnóstico", height=80)
     
-    st.markdown("---")
-    if st.button("🔒 Cerrar Sesión"):
-        st.session_state['logueado'] = False
-        st.rerun()
-
-# 3. Interfaz Principal (Formulario)
-st.title("📋 Ficha de Ingreso y Derivación")
-st.caption(f"Fecha: {datetime.now().strftime('%d/%m/%Y')}")
-
-with st.form("formulario_completo", clear_on_submit=True):
-    
-    # --- BLOQUE 1: DATOS CLAVE ---
-    st.subheader("👤 Identificación")
-    c1, c2, c3, c4 = st.columns(4)
-    with c1: area = st.selectbox("Área", ["RED DE ATENCIÓN", "DIPA 15", "DIPA COMBATE", "SUBTE", "Otro"])
-    with c2: dni = st.text_input("DNI (Sin puntos) *")
-    with c3: nombre = st.text_input("Nombre *")
-    with c4: apellido = st.text_input("Apellido *")
-    
-    # Lógica DIPA
-    gorcis = "NO APLICA"
-    if area == "DIPA COMBATE":
-        gorcis = st.radio("Evaluación GORCIS?", ["SI", "NO", "NO APLICA"], horizontal=True)
-
-    # --- BLOQUE 2: DETALLES ---
-    with st.expander("📝 Datos Complementarios y Salud (Clic para desplegar)", expanded=True):
-        col_a, col_b = st.columns(2)
-        with col_a:
-            fecha_nac = st.date_input("Fecha Nacimiento", min_value=date(1940, 1, 1))
-            prioridad = st.selectbox("Prioridad", ["1. COMUNA 2", "2. COMUNA 14", "3. PERSONA SIN TECHO", "4. ORGAS", "5. GERENCIA", "OTRAS"])
-            salud = st.selectbox("Problemática Salud", ["NO", "SI"])
-            toma_med = st.checkbox("Toma Medicación?")
-            cual_med = st.text_input("¿Cuál?") if toma_med else ""
-            
-        with col_b:
-            genero = st.selectbox("Género", ["Masc", "Fem", "Trans", "NB", "Otro"])
-            supervisor = st.text_input("Supervisor")
-            carta = st.text_input("N° Carta")
-            movilidad = st.selectbox("Movilidad Reducida?", ["NO", "SILLA RUEDAS", "MULETAS", "BASTÓN"])
-
-    # --- BLOQUE 3: SOCIAL ---
-    st.subheader("🤝 Situación Social")
-    obs = st.text_area("Diagnóstico / Resumen del Caso *", height=100, placeholder="Describa brevemente la situación...")
-
-    # Botón grande
-    submitted = st.form_submit_button("💾 GUARDAR FICHA", use_container_width=True)
+    # Botón de envío
+    submitted = st.form_submit_button("🚀 REGISTRAR EN LA NUBE", use_container_width=True)
 
     if submitted:
-        if not dni or not nombre or not apellido:
-            st.error("⚠️ Faltan datos obligatorios (DNI, Nombre, Apellido)")
+        if not nombre or not dni:
+            st.warning("⚠️ Falta Nombre o DNI")
         else:
-            # Aquí armamos el diccionario (resumido para el ejemplo, agrega todos tus campos)
-            datos = {
-                "ÁREA": area, "NOMBRE": nombre, "APELLIDO": apellido,
-                "NÚMERO DE IDENTIDAD": dni, "DIAGNÓSTICO DEL OPERADOR": obs,
-                "FECHA NACIMIENTO": str(fecha_nac),
-                "SUPERVISOR/A": supervisor
-                # ... (El resto de tus campos irían aquí)
-            }
-            guardar_local(datos)
-            
-            # Feedback Moderno
+            with st.spinner("Guardando en Google Drive..."):
+                # Preparar la fila EXACTAMENTE en el orden de las columnas de tu Excel
+                edad = calcular_edad(fecha_nac)
+                ahora = datetime.now()
+                fecha_str = ahora.strftime("%Y-%m-%d")
+                hora_str = ahora.strftime("%H:%M:%S")
+                
+                # LA LISTA MAESTRA (Orden de columnas)
+                # Asegúrate que tu Google Sheet tenga estas columnas en este orden
+                fila_datos = [
+                    fecha_str,  # Columna A
+                    hora_str,   # Columna B
+                    area,       # Columna C
+                    prioridad,  # ...
+                    supervisor,
+                    carta,
+                    nombre,
+                    apellido,
+                    dni,
+                    tipo_doc,
+                    nacionalidad,
+                    edad,
+                    genero,
+                    obs
+                ]
+                
+                exito = guardar_en_nube(fila_datos)
+                
+                if exito:
+                    st.success(f"✅ ¡Listo! {nombre} registrado correctamente en la nube.")
+                    st.balloons()
             st.toast(f"✅ Ficha de {nombre} guardada correctamente!", icon="🎉")
             st.balloons()
+
