@@ -11,30 +11,30 @@ NOMBRE_HOJA_GOOGLE = "Base de Datos CIS"
 
 # --- FUNCIÓN DE CONEXIÓN (MEJORADA) ---
 def conectar_sheets():
+   def conectar_sheets():
     try:
-        # Scopes necesarios para lectura/escritura y acceso a Drive
         scope = ["https://www.googleapis.com/auth/spreadsheets", 
                  "https://www.googleapis.com/auth/drive"]
         
-        # Cargar credenciales desde los Secrets de Streamlit
-        if "connections" not in st.secrets or "gsheets" not in st.secrets["connections"]:
-            st.error("❌ No se encontró la sección [connections.gsheets] en los Secrets.")
-            return None
-            
+        # Leemos los secretos directamente
         creds_dict = dict(st.secrets["connections"]["gsheets"])
         
-        # Limpieza de la clave privada (el error más común)
+        # LIMPIEZA: El truco para evitar el error 200
         if "private_key" in creds_dict:
-            creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+            # Limpiamos espacios y saltos de línea mal pegados
+            pk = creds_dict["private_key"].strip().replace("\\n", "\n")
+            if pk.startswith('"') and pk.endswith('"'):
+                pk = pk[1:-1]
+            creds_dict["private_key"] = pk
         
         creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
         client = gspread.authorize(creds)
         
-        # Abrir la hoja por su nombre
+        # Abrimos la hoja
         sheet = client.open(NOMBRE_HOJA_GOOGLE).sheet1
         return sheet
     except Exception as e:
-        st.error(f"❌ Error al conectar con Google Sheets: {str(e)}")
+        st.error(f"❌ Error detallado: {str(e)}")
         return None
 
 def guardar_en_nube(datos_lista):
@@ -211,3 +211,4 @@ if st.button("🚀 REGISTRAR EN GOOGLE SHEETS", type="primary", use_container_wi
             if guardar_en_nube(fila):
                 st.success(f"✅ ¡Ingreso de {nombre} registrado!")
                 st.balloons()
+
